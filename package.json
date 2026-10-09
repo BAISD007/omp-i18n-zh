@@ -1,0 +1,36 @@
+{
+  "name": "omp-i18n-zh",
+  "version": "0.1.0",
+  "description": "简体中文汉化扩展：把 omp 的斜杠命令菜单、参数补全与选中说明翻译成中文",
+  "license": "MIT",
+  "keywords": [
+    "oh-my-pi",
+    "omp",
+    "i18n",
+    "chinese",
+    "localization",
+    "zh",
+    "tui"
+  ],
+  "omp": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BAISD007/omp-i18n-zh.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BAISD007/omp-i18n-zh/issues"
+  },
+  "homepage": "https://github.com/BAISD007/omp-i18n-zh#readme",
+  "engines": {
+    "omp": ">=16.0.0"
+  }
+}
