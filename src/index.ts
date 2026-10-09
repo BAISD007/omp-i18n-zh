@@ -1,8 +1,10 @@
 /**
- * omp-zh — 斜杠命令菜单 / 补全项汉化
+ * omp-i18n-zh — omp (oh-my-pi) 简体中文扩展
  *
  * 原理：ctx.ui.addAutocompleteProvider(factory) 让我们包裹内置的补全 provider，
- * 拿到 AutocompleteItem[] 后改写 description / nativeDetail，再交回渲染。
+ * 拿到 AutocompleteItem[] 后改写 description / nativeDetail / state，再交回渲染。
+ *
+ * 翻译表在 src/translations.json，改完执行 /zh reload 立即生效，无需重启。
  *
  * 边界（插件 API 够不着的地方，保持英文）：
  *   - label / value：命令名本身。改了会导致补全错位和匹配失败。
@@ -10,8 +12,10 @@
  *   - Tip 提示行、启动 Warning：编译进二进制，不走补全通道。
  *   - 设置面板、状态栏、footer/header：无插件接口。
  *
- * 开关：/zh on | /zh off | /zh status
+ * 开关：/zh on | /zh off | /zh reload
  */
+
+import translations from "./translations.json" with { type: "json" };
 
 type Item = {
   value: string;
@@ -32,378 +36,40 @@ type Provider = {
   trySyncInlineReplace?: (...a: any[]) => any;
 };
 
-/** 静态文案：整句替换。key = 英文原文。 */
-const EXACT: Record<string, string> = {
-  // ---- 无状态、直接说明用途的命令 ----
-  "Plan, run, inspect, import, and compare OMP-native security scans":
-    "规划、执行、检查、导入并对比 OMP 原生安全扫描",
-  "Open settings menu": "打开设置菜单",
-  "Open provider setup": "打开供应商配置",
-  "Have the agent interview you in chat, then set up goal mode":
-    "让代理在对话中访谈你，然后设置目标模式",
-  "Queue a message for after the agent yields": "排队一条消息，等代理让出控制权后发送",
-  "Build (or reuse) an eval for an LLM flow, then hillclimb it unattended":
-    "为某个 LLM 流程构建（或复用）eval，然后无人值守地爬山优化",
-  "Arm, restart, or cancel a one-shot model handoff":
-    "预设、重启或取消一次性模型交接",
-  "Export session to HTML file": "导出会话为 HTML 文件",
-  "Open this session's trace in the stats dashboard":
-    "在统计面板中打开本会话的 trace",
-  "Copy session transcript to clipboard (and write LLM request JSON to tmp)":
-    "复制会话记录到剪贴板（并把 LLM 请求 JSON 写入 tmp）",
-  "Share session via an encrypted link (share server or secret gist)":
-    "通过加密链接分享会话（分享服务器或私密 gist）",
-  "Join a shared collab session": "加入已共享的协作会话",
-  "Pick text or code from the conversation to copy":
-    "从对话中挑选文本或代码进行复制",
-  "Open the last link from the conversation in your browser (or pick one with /copy)":
-    "在浏览器中打开对话里最后一个链接（或用 /copy 选一个）",
-  "Session management commands": "会话管理命令",
-  "Show provider usage and limits": "显示供应商用量与限额",
-  "Launch the local stats dashboard": "启动本地统计面板",
-  "Show changelog entries": "显示更新日志",
-  "Show all keyboard shortcuts": "显示所有快捷键",
-  "Open Extension Control Center dashboard": "打开扩展控制中心面板",
-  "Open the agents hub (per-agent model, prewalk, and advisor)":
-    "打开子代理中心（各代理的模型、prewalk、advisor）",
-  "Open the git UI (split diff viewer, staging, commit composer)":
-    "打开 git 界面（分栏 diff 视图、暂存区、提交编辑器）",
-  "Open the live Agent Hub": "打开实时 Agent Hub",
-  "Rewind to a previous message, keeping the old path as a branch":
-    "回退到之前某条消息，原路径保留为分支",
-  "Create a new fork from a previous message": "从之前某条消息创建新分叉",
-  "Navigate session tree (switch branches)": "浏览会话树（切换分支）",
-  "Logout from OAuth provider": "从 OAuth 供应商登出",
-  "Manage MCP servers (add, list, remove, test)": "管理 MCP 服务器（添加、列出、移除、测试）",
-  "Manage SSH hosts (add, list, remove)": "管理 SSH 主机（添加、列出、移除）",
-  "Start a new session": "开始新会话",
-  "Delete the current session and start a new one": "删除当前会话并开始新会话",
-  "Drop heavy content from context (tool results, large blocks)":
-    "从上下文中丢弃大块内容（工具结果、大段文本）",
-  "Summarize the session into a handoff document and compact in place":
-    "将会话总结为交接文档，并就地压缩上下文",
-  "Resume a different session": "恢复另一个会话",
-  "Pin or unpin a session at the top of the resume list":
-    "在恢复列表顶部固定或取消固定某个会话",
-  "Ask a side question, or browse this session's BTW history":
-    "问一个题外话，或浏览本会话的 BTW 历史",
-  "Run a full background agent on tangential work": "为旁支工作启动一个完整的后台代理",
-  "Forge a TTSR rule from a complaint to stop a recurring behavior":
-    "根据一条抱怨生成 TTSR 规则，阻止某个反复出现的行为",
-  "Detect and fix project diagnostics with weighted parallel subagents":
-    "用带权并行子代理检测并修复项目诊断问题",
-  "Retry the last failed agent turn": "重试上一次失败的代理回合",
-  "Open debug tools selector": "打开调试工具选择器",
-  "Inspect and operate memory maintenance": "查看并操作记忆维护",
-  "Rename the current session (omit title to generate)":
-    "重命名当前会话（省略标题则自动生成）",
-  "Move the current session to a different directory": "把当前会话移动到其他目录",
-  "Move this session into a new worktree, changes included":
-    "把本会话（含改动）移入新的 worktree",
-  "Add a workspace directory to this session (multi-root)":
-    "为当前会话添加一个工作区目录（多根）",
-  "Remove a workspace directory from this session": "从当前会话移除一个工作区目录",
-  "List this session's workspace directories": "列出本会话的工作区目录",
-  "Exit the application": "退出程序",
-  "Restart omp with the same launch flags, resuming this session":
-    "以相同的启动参数重启 omp，并恢复本会话",
-  "Manage marketplace plugin sources and installed plugins":
-    "管理插件市场源与已安装插件",
-  "View and manage installed plugins": "查看并管理已安装的插件",
-  "Reload all plugins (skills, commands, hooks, tools, agents, MCP)":
-    "重载所有插件（skills、commands、hooks、tools、agents、MCP）",
-  "Search, install, and update skills from the skills.omp.sh registry":
-    "从 skills.omp.sh 注册表搜索、安装、更新 skills",
-  "Start Codex-backed realtime voice mode": "启动 Codex 驱动的实时语音模式",
-  "Start or stop recording this screen to a replayable file (omp play)":
-    "开始或停止录制屏幕到可回放文件（omp play）",
-  "Freeze all agents (main, subagents, advisor) until resumed":
-    "冻结所有代理（主代理、子代理、advisor）直到恢复",
-  "Quit the application": "退出程序",
-  "Toggle builtin autoresearch mode, or pass off / clear, or a goal message.":
-    "切换内置 autoresearch 模式，或传入 off / clear，或一条目标消息",
-  "Generate a prompt to iterate on CI failures until the branch is green (bundled)":
-    "生成提示词，迭代修复 CI 失败直到分支变绿（内置）",
-  "Launch interactive code review (bundled)": "启动交互式代码评审（内置）",
-  "Annotate a diff or text from a file, prompt, latest reply, or session (bundled)":
-    "为文件、提示词、最新回复或会话中的 diff／文本添加注释（内置）",
-  "Generate AGENTS.md for current codebase": "为当前代码库生成 AGENTS.md",
+/** 可变的翻译表状态：/zh reload 会整体替换。 */
+let EXACT: Record<string, string> = { ...translations.exact };
+let PREFIX: Array<[string, string]> = translations.prefix.map(p => [p[0], p[1]]);
+let STATE_FRAGMENTS: Array<[string, string]> = translations.state.map(p => [p[0], p[1]]);
+let PREFIX_SORTED: Array<[string, string]> = [];
+let STATE_SORTED: Array<[string, string]> = [];
 
-  // ---- nativeDetail（选中条目时显示的补充说明）----
-  "Switch model for this session": "切换本会话使用的模型",
-  "Switch model for this session (same as Alt+P); accepts fuzzy ids, provider/id, @role, :level":
-    "切换本会话使用的模型（同 Alt+P）；支持模糊 id、provider/id、@role、:level",
-  "Toggle plan mode (agent plans before executing)": "切换计划模式（代理先规划再执行）",
-  "Re-open the plan review for the latest plan (plan mode only)":
-    "重新打开最近计划的评审界面（仅计划模式）",
-  "Toggle vibe mode (direct persistent fast/good worker sessions; read-only toolset)":
-    "切换 vibe 模式（直连持久化 fast/good worker 会话；只读工具集）",
-  "Toggle goal mode (persistent autonomous objective for this session)":
-    "切换目标模式（为本会话设定持久自主目标）",
-  "Toggle loop mode. While enabled, the next prompt you send re-submits after every yield. Bound it with a count/duration, or gate it with `--until '<cmd>'` / `--while '<cmd>'` — the command's exit status decide whether the next iteration runs. ⎋ suspends the ongoing loop; /loop again to disable.":
-    "切换循环模式。开启后，你发送的下一条提示会在每次让出控制权后自动重发。可用次数/时长设上限，或用 `--until '<cmd>'` / `--while '<cmd>'` 设条件——由命令退出状态决定是否继续下一轮。⎋ 暂停当前循环；再次 /loop 可关闭。",
-  "Save and switch model presets (role models + thinking level)":
-    "保存并切换模型预设（各角色模型 + 思考等级）",
-  "Set reasoning effort (thinking level, intelligence) for this session; ⇧⇥ cycles levels":
-    "设置本会话的推理强度（思考等级）；⇧⇥ 循环切换等级",
-  "Toggle fast service (OpenAI service_tier=priority or ultrafast, Anthropic speed=fast, Google priority)":
-    "切换快速服务（OpenAI service_tier=priority 或 ultrafast，Anthropic speed=fast，Google priority）",
-  "Toggle slow mode: flex tier on OpenAI/Google; on Anthropic, continue at low priority after the Claude session limit":
-    "切换慢速模式：OpenAI/Google 走 flex 层；Anthropic 在达到 Claude 会话上限后以低优先级继续",
-  "Toggle listing available skills in the system prompt (session only)":
-    "切换是否在系统提示词中列出可用 skills（仅本会话）",
-  "Toggle extended context windows": "切换扩展上下文窗口",
-  "Toggle the native computer-use eval prelude for this session":
-    "切换本会话的原生 computer-use eval 前置",
-  "Toggle the advisor (a second model that reviews each turn and injects notes)":
-    "切换 advisor（第二个模型，复核每一轮并注入批注）",
-  "Share this session live via a relay": "通过 relay 实时共享本会话",
-  "Leave the collab session": "离开协作会话",
-  "Toggle browser eval-prelude headless vs visible mode":
-    "切换浏览器 eval 前置的无头／可见模式",
-  "View or modify the agent's todo list": "查看或修改代理的待办列表",
-  "Show async background jobs status": "显示异步后台任务状态",
-  "Show tools currently visible to the agent": "显示当前对代理可见的工具",
-  "Show estimated context usage breakdown": "显示估算的上下文占用明细",
-  "Login with OAuth provider": "用 OAuth 供应商登录",
-  "Reset provider stream state without changing the local transcript":
-    "重置供应商流状态，不改动本地记录",
-  "Clear the conversation context in place, keeping the session":
-    "就地清空对话上下文，保留会话",
-  "Manually compact the session context": "手动压缩会话上下文",
-  "Force next turn to use a specific tool": "强制下一轮使用指定工具",
+/** 动态文案会追加后缀，最常见的是 /effort 的 "Deep reasoning (~16k tokens) (current)"。 */
+const SUFFIXES: Array<[string, string]> = [[" (current)", "（当前）"]];
 
-  // ---- 思考等级（/effort 的选项，带 "(current)" 后缀，运行时另行处理）----
-  "No reasoning": "不推理",
-  "Auto-detect per prompt": "按提示自动判断",
-  "Very brief reasoning (~1k tokens)": "极简推理（约 1k tokens）",
-  "Light reasoning (~2k tokens)": "轻量推理（约 2k tokens）",
-  "Moderate reasoning (~8k tokens)": "中等推理（约 8k tokens）",
-  "Deep reasoning (~16k tokens)": "深度推理（约 16k tokens）",
-  "Extended reasoning (~32k tokens)": "超长推理（约 32k tokens）",
-  "Maximum reasoning the model supports": "模型支持的最高推理强度",
-  "Inherit session default": "沿用会话默认值",
-
-  // ---- /security 子命令 ----
-  "Create an immutable security scan plan": "创建不可变更的安全扫描计划",
-  "Start a planned or newly planned native scan": "开始执行已有或刚创建的原生扫描",
-  "Show native scan operation status": "显示原生扫描的运行状态",
-  "Cancel a running native scan": "取消正在运行的原生扫描",
-  "List stored project security scans": "列出已保存的项目安全扫描",
-  "Render a scan or security:// resource": "渲染扫描结果或 security:// 资源",
-  "Import SARIF or a Codex Security bundle": "导入 SARIF 或 Codex Security 数据包",
-  "Export a canonical bundle, SARIF, or report": "导出标准数据包、SARIF 或报告",
-  "Validate one finding with OMP-native tools": "用 OMP 原生工具验证某条发现",
-  "Compare finding lineage across two scans": "对比两次扫描的发现来源",
-  "Set a finding disposition with rationale": "为某条发现设定处置结论及理由",
-
-  // ---- 通用子命令 ----
-  "Configure sign-in and web search providers": "配置登录与网页搜索供应商",
-  "Set or replace the goal": "设置或替换当前目标",
-  "Show current goal details": "显示当前目标详情",
-  "Pause the current goal": "暂停当前目标",
-  "Resume a paused goal": "恢复已暂停的目标",
-  "Drop the current goal": "放弃当前目标",
-  "Adjust the token budget": "调整 token 预算",
-  "Show fast mode status": "显示快速模式状态",
-  "Show slow mode status": "显示慢速模式状态",
-  "Show skill listing status": "显示 skills 列表状态",
-  "Show extended context status": "显示扩展上下文状态",
-  "Show computer use status": "显示 computer 模式状态",
-  "Return to @default and re-arm the handoff to @smol":
-    "回到 @default 并重新预设向 @smol 的交接",
-  "Cancel this session's handoff without changing the active model":
-    "取消本会话的模型交接，不改变当前模型",
-  "List saved presets": "列出已保存的预设",
-  "Save the current role models and thinking level": "保存当前各角色模型与思考等级",
-  "Apply a saved preset": "应用已保存的预设",
-  "Delete a saved preset": "删除已保存的预设",
-
-  // ---- /todo 子命令 ----
-  "Open todos in $EDITOR (Markdown round-trip)": "在 $EDITOR 中编辑待办（Markdown 往返）",
-  "Copy todos as Markdown to clipboard": "把待办以 Markdown 复制到剪贴板",
-  "Show every phase and task in the HUD": "在 HUD 中显示全部阶段与任务",
-  "Restore the bounded HUD preview": "恢复受限的 HUD 预览",
-  "Write todos as Markdown to a file (default: TODO.md)":
-    "把待办以 Markdown 写入文件（默认 TODO.md）",
-  "Replace todos from a Markdown file (default: TODO.md)":
-    "用 Markdown 文件替换待办（默认 TODO.md）",
-  "Append a task; phase fuzzy-matched or auto-created":
-    "追加任务；阶段按模糊匹配或自动创建",
-  "Mark task in_progress (fuzzy-matched)": "把任务标记为进行中（模糊匹配）",
-  "Mark task/phase/all completed (fuzzy-matched)":
-    "把任务／阶段／全部标记为已完成（模糊匹配）",
-  "Mark task/phase/all abandoned (fuzzy-matched)":
-    "把任务／阶段／全部标记为已放弃（模糊匹配）",
-  "Remove task/phase/all (fuzzy-matched)": "删除任务／阶段／全部（模糊匹配）",
-
-  // ---- /session、/usage、/changelog 子命令 ----
-  "Show session info and stats": "显示会话信息与统计",
-  "Delete current session and return to selector": "删除当前会话并返回选择器",
-  "Pin the current provider to a stored OAuth account":
-    "把当前供应商绑定到已存的 OAuth 账号",
-  "Show full, untruncated command lines": "显示完整未截断的命令行",
-  "Show provider usage and limits": "显示供应商用量与限额",
-  "Spend a saved provider rate-limit reset": "使用已保存的供应商限流重置额度",
-  "Show complete changelog": "显示完整更新日志",
-  "Show the last N releases (default 1)": "显示最近 N 个版本（默认 1）",
-
-  // ---- /mcp 子命令 ----
-  "Add a new MCP server": "添加新的 MCP 服务器",
-  "List all configured MCP servers": "列出所有已配置的 MCP 服务器",
-  "Remove an MCP server": "移除某个 MCP 服务器",
-  "Test connection to a server": "测试与某个服务器的连接",
-  "Reauthorize OAuth for a server": "重新进行某个服务器的 OAuth 授权",
-  "Remove OAuth auth from a server": "移除某个服务器的 OAuth 授权",
-  "Enable an MCP server": "启用某个 MCP 服务器",
-  "Disable an MCP server": "禁用某个 MCP 服务器",
-  "Search Smithery registry and deploy an MCP server":
-    "在 Smithery 注册表搜索并部署 MCP 服务器",
-  "Login to Smithery and cache API key": "登录 Smithery 并缓存 API key",
-  "Remove cached Smithery API key": "移除已缓存的 Smithery API key",
-  "Reconnect to a specific MCP server": "重连某个 MCP 服务器",
-  "Force reload MCP runtime tools": "强制重载 MCP 运行时工具",
-  "List available resources from connected servers": "列出已连接服务器提供的资源",
-  "List available prompts from connected servers": "列出已连接服务器提供的提示词",
-  "Show notification capabilities and subscriptions": "显示通知能力与订阅情况",
-  "Show help message": "显示帮助信息",
-
-  // ---- /ssh 子命令 ----
-  "Add an SSH host": "添加 SSH 主机",
-  "List all configured SSH hosts": "列出所有已配置的 SSH 主机",
-  "Remove an SSH host": "移除某个 SSH 主机",
-
-  // ---- /shake 子命令 ----
-  "Strip tool results + large blocks (default)": "剥离工具结果与大块内容（默认）",
-  "Strip image blocks": "剥离图片块",
-  "Drop all thinking blocks": "丢弃所有思考块",
-
-  // ---- /memory 子命令 ----
-  "Show current memory injection payload": "显示当前的记忆注入内容",
-  "Show memory backend statistics": "显示记忆后端统计",
-  "Run memory backend diagnostics": "运行记忆后端诊断",
-  "Show pending memory deltas awaiting consolidation": "显示待整合的记忆增量",
-  "Run memory consolidation now": "立即运行记忆整合",
-  "Clear persisted memory data and artifacts": "清除已持久化的记忆数据与产物",
-  "Alias for clear": "clear 的别名",
-  "Enqueue memory consolidation maintenance": "将记忆整合维护加入队列",
-  "Alias for enqueue": "enqueue 的别名",
-  "List mental models on the active bank": "列出当前模型库中的心智模型",
-  "Show one mental model (id required)": "显示某个心智模型（需提供 id）",
-  "Refresh auto-refresh models bank-wide, or one model by id":
-    "全库刷新自动更新模型，或按 id 刷新单个",
-  "Diff the change history of a mental model": "查看某个心智模型的变更历史差异",
-  "Create any built-in mental models that are missing": "创建缺失的内置心智模型",
-  "Delete a mental model from the bank (id required)": "从模型库删除心智模型（需提供 id）",
-  "Re-pull the cached <mental_models> block": "重新拉取缓存的 <mental_models> 块",
-
-  // ---- /skills 子命令 ----
-  "Search the skill registry": "搜索 skills 注册表",
-  "Install registry skills": "从注册表安装 skills",
-  "List installed registry skills": "列出已从注册表安装的 skills",
-  "Update registry skills within their ranges": "在各自版本范围内更新 skills",
-
-  // ---- /advisor 子命令 ----
-  "Enable the advisor": "启用 advisor",
-  "Disable the advisor": "禁用 advisor",
-  "Show advisor status": "显示 advisor 状态",
-  "Copy the advisor's transcript to clipboard": "把 advisor 的记录复制到剪贴板",
-  "Open the advisor configuration editor (TUI)": "打开 advisor 配置编辑器（TUI）",
-
-  // ---- /collab 子命令 ----
-  "Write a zip with the main transcript, LLM request JSON, and one file per subagent":
-    "打包 zip：主对话记录、LLM 请求 JSON，以及每个子代理一个文件",
-  "Share a read-only link (guests can watch, not prompt)":
-    "分享只读链接（访客可观看，不能发言）",
-  "List active local Collab hosts (no links; use `omp collab link`)":
-    "列出本地活跃的协作主机（不含链接；用 `omp collab link`）",
-  "Show link + participants": "显示链接与参与者",
-  "Stop sharing": "停止共享",
-  "Switch to headless mode": "切换到无头模式",
-  "Switch to visible mode": "切换到可见模式",
-};
+function resort() {
+  // 必须按字面长度降序：让 "none saved" 先于 "none" 命中，
+  // 否则会先替换掉 "none"，留下一个没人接的 "saved"。
+  PREFIX_SORTED = [...PREFIX].sort((a, b) => b[0].length - a[0].length);
+  STATE_SORTED = [...STATE_FRAGMENTS].sort((a, b) => b[0].length - a[0].length);
+}
+resort();
 
 /**
- * 动态文案：拆成「可译前缀 + 原样保留的状态值」。
- * 匹配 description 的开头，替换掉前缀，剩余部分（含 state）不动。
- * 按 key 长度降序尝试，避免 "Plan: " 抢先于 "Plan review: "。
+ * 翻译状态值片段。
+ * 逐条扫描：命中最长的片段后跳过其长度，避免 "none" 抢在 "none saved" 前面。
+ * 带词边界检查，避免 "on" 命中 "provider" 或 "supercalifragilistic" 里的 on。
  */
-const PREFIX: Array<[string, string]> = [
-  ["Plan review: ", "计划评审："],
-  ["Plan: ", "计划模式："],
-  ["Vibe: ", "Vibe 模式："],
-  ["Goal: ", "目标模式："],
-  ["Loop: ", "循环模式："],
-  ["Collab: ", "协作："],
-  ["Advisor: ", "Advisor："],
-  ["Fast: ", "快速模式："],
-  ["Slow mode: ", "慢速模式："],
-  ["Skill listing: ", "Skills 列表："],
-  ["Extended context: ", "扩展上下文："],
-  ["Computer: ", "Computer 模式："],
-  ["Thinking: ", "思考强度："],
-  ["Presets: ", "预设："],
-  ["Todos: ", "待办："],
-  ["Jobs: ", "后台任务："],
-  ["Tools: ", "工具："],
-  ["Context: ", "上下文："],
-  ["Model: ", "模型："],
-  ["Fresh: ", "Fresh："],
-  ["Clear: ", "Clear："],
-  ["Compact: ", "压缩："],
-  ["Login: ", "登录："],
-  ["Leave collab: ", "离开协作："],
-  ["Force: ", "强制："],
-  ["Browser: ", "浏览器："],
-];
-
-const PREFIX_SORTED = [...PREFIX].sort((a, b) => b[0].length - a[0].length);
-
-/**
- * 状态值里也含英文的小片段，做局部替换。
- * 按字面长度降序：必须让 "none saved" 先于 "none" 命中，
- * 否则会留下一个没人接的 "saved"。
- */
-const STATE_FRAGMENTS: Array<[string, string]> = [
-  ["drop context, keep session", "清空上下文，保留会话"],
-  ["unavailable while streaming", "流式输出中不可用"],
-  ["plan mode inactive", "计划模式未激活"],
-  ["disabled in settings", "已在设置中禁用"],
-  ["context inactive", "上下文未激活"],
-  ["none saved", "未保存"],
-  ["active tools", "个工具已启用"],
-  ["choose provider", "选择供应商"],
-  ["context ", "上下文已用 "],
-  ["waiting for ", "等待 "],
-  ["not in collab", "未加入协作"],
-  ["headless", "无头"],
-  ["visible", "可见"],
-  ["ready", "就绪"],
-  ["available", "可用"],
-  ["inactive", "未激活"],
-  ["none", "无"],
-  ["active", "已启用"],
-  ["saved", "已保存"],
-  ["off", "关闭"],
-  ["on", "开启"],
-];
-
-const STATE_SORTED = [...STATE_FRAGMENTS].sort((a, b) => b[0].length - a[0].length);
-
 function translateState(s: string): string {
   let out = s;
-  // 逐条扫描：命中最长的片段后跳过其长度，避免 "none" 抢在 "none saved" 前面
   for (const [en, zh] of STATE_SORTED) {
     let idx = out.indexOf(en);
     while (idx !== -1) {
-      // 词边界检查：避免 "on" 命中 "provider" 里的 on
       const before = idx === 0 ? " " : out[idx - 1];
       const afterIdx = idx + en.length;
       const after = afterIdx >= out.length ? " " : out[afterIdx];
       const isWord = /[A-Za-z]/.test(en[0]);
       const boundaryOk =
-        !isWord ||
-        (!/[A-Za-z]/.test(before) && !/[A-Za-z]/.test(after));
+        !isWord || (!/[A-Za-z]/.test(before) && !/[A-Za-z]/.test(after));
       if (boundaryOk) {
         out = out.slice(0, idx) + zh + out.slice(afterIdx);
         idx = out.indexOf(en, idx + zh.length);
@@ -415,25 +81,15 @@ function translateState(s: string): string {
   return out;
 }
 
-/** 处理动态文案：前缀替换 + 状态片段替换。整句命中 EXACT 则优先。 */
+/** 动态文案：匹配可译前缀，剩余部分（通常是 state 值）交给 translateState。 */
 function translateDynamic(text: string): string {
   for (const [en, zh] of PREFIX_SORTED) {
     if (text.startsWith(en)) {
-      const rest = text.slice(en.length);
-      // rest 往往就是 state 值（如 "off"、"12 active / 20 available"）
-      return zh + translateState(rest);
+      return zh + translateState(text.slice(en.length));
     }
   }
   return text;
 }
-
-/**
- * 动态文案会追加后缀，最常见的是 /effort 的 "Deep reasoning (~16k tokens) (current)"。
- * 先剥掉已知后缀再查表，最后把后缀原样接回去（"（当前）" 是本地化词，加括注）。
- */
-const SUFFIXES: Array<[string, string]> = [
-  [" (current)", "（当前）"],
-];
 
 function translateText(text: string | undefined): string | undefined {
   if (!text) return text;
@@ -442,8 +98,7 @@ function translateText(text: string | undefined): string | undefined {
 
   for (const [en, zh] of SUFFIXES) {
     if (text.endsWith(en)) {
-      const base = text.slice(0, -en.length);
-      const translated = EXACT[base];
+      const translated = EXACT[text.slice(0, -en.length)];
       if (translated) return translated + zh;
     }
   }
@@ -451,24 +106,95 @@ function translateText(text: string | undefined): string | undefined {
   return translateDynamic(text);
 }
 
-// ---- 开关状态：/zh on|off ----
+/** 改写单个补全条目。只动文案，label / value / icon 一律不碰。 */
+function translateItem(it: Item): Item {
+  const next: Item = { ...it };
+  const d = translateText(it.description);
+  if (d !== it.description) next.description = d;
+  const nd = translateText(it.nativeDetail);
+  if (nd !== it.nativeDetail) next.nativeDetail = nd;
+  if (it.state) {
+    const st = translateDynamic(it.state);
+    if (st !== it.state) next.state = st;
+  }
+  return next;
+}
+
+// ---- 运行时状态 ----
 let enabled = true;
-const listeners: Array<(v: boolean) => void> = [];
-function setEnabled(v: boolean) {
-  enabled = v;
-  for (const l of listeners) l(v);
+const renderers: Array<() => void> = [];
+
+function repaint() {
+  for (const r of renderers) {
+    try {
+      r();
+    } catch {
+      /* 某些模式无 requestRender，忽略 */
+    }
+  }
+}
+
+/**
+ * /zh reload：绕过 import 缓存重新读 translations.json。
+ * 加时间戳 query 让模块系统当成新 URL 重新求值。
+ */
+async function reloadTranslations(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const url = new URL("./translations.json", import.meta.url);
+    url.searchParams.set("_", String(Date.now()));
+    const mod: any = await import(url.href);
+    const next = mod.default ?? mod;
+
+    if (!next || typeof next !== "object" || !next.exact) {
+      return { ok: false, message: "翻译表格式不对：缺少 exact 字段" };
+    }
+    const count = Object.keys(next.exact).length;
+    if (count === 0) {
+      return { ok: false, message: "翻译表是空的，已保留原有内容" };
+    }
+
+    EXACT = { ...next.exact };
+    PREFIX = (next.prefix ?? []).map((p: string[]) => [p[0], p[1]]);
+    STATE_FRAGMENTS = (next.state ?? []).map((p: string[]) => [p[0], p[1]]);
+    resort();
+
+    return {
+      ok: true,
+      message: `翻译表已重载：${count} 条`,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: `重载失败：${msg}（已保留原有翻译）` };
+  }
 }
 
 export default function ompZh(pi: any) {
   pi.registerCommand("zh", {
-    description: "开关斜杠命令菜单汉化：/zh on、/zh off",
+    description: "斜杠菜单汉化开关：/zh on、/zh off、/zh reload",
     handler: async (args: string, ctx: any) => {
       const a = (args ?? "").trim().toLowerCase();
-      if (a === "off" || a === "0" || a === "false") setEnabled(false);
-      else if (a === "on" || a === "1" || a === "true") setEnabled(true);
-      else if (a === "toggle") setEnabled(!enabled);
+
+      if (a === "reload") {
+        const { ok, message } = await reloadTranslations();
+        if (ok) repaint();
+        ctx.ui.notify(message, ok ? "info" : "error");
+        return;
+      }
+
+      if (a === "off" || a === "0" || a === "false") enabled = false;
+      else if (a === "on" || a === "1" || a === "true") enabled = true;
+      else if (a === "toggle") enabled = !enabled;
+      else if (a === "status") {
+        // status 走下面的 notify，不改开关
+      }
+
+      if (a !== "status") repaint();
       ctx.ui.notify(
-        enabled ? "斜杠命令菜单：中文" : "Slash menu: English",
+        a === "status"
+          ? `斜杠命令菜单：${enabled ? "中文" : "英文"}`
+          : enabled
+            ? "斜杠命令菜单：中文"
+            : "Slash menu: English",
         "info",
       );
     },
@@ -479,23 +205,7 @@ export default function ompZh(pi: any) {
       async getSuggestions(...args: any[]) {
         const res = await (current.getSuggestions as any)(...args);
         if (!enabled || !res || !Array.isArray(res.items)) return res;
-
-        const items: Item[] = res.items.map((it: Item) => {
-          const next: Item = { ...it };
-          // 只改文案；label/value/icon/state 一律不动
-          const d = translateText(it.description);
-          if (d !== it.description) next.description = d;
-          const nd = translateText(it.nativeDetail);
-          if (nd !== it.nativeDetail) next.nativeDetail = nd;
-          // state 是右对齐的状态值，动态翻译
-          if (it.state) {
-            const st = translateDynamic(it.state);
-            if (st !== it.state) next.state = st;
-          }
-          return next;
-        });
-
-        return { ...res, items };
+        return { ...res, items: res.items.map((it: Item) => translateItem(it)) };
       },
 
       applyCompletion(...args: any[]) {
@@ -514,28 +224,16 @@ export default function ompZh(pi: any) {
         if (!enabled || !res || !Array.isArray(res.items)) return res ?? null;
         return {
           ...res,
-          items: res.items.map((it: Item) => {
-            const next: Item = { ...it };
-            const d = translateText(it.description);
-            if (d !== it.description) next.description = d;
-            const nd = translateText(it.nativeDetail);
-            if (nd !== it.nativeDetail) next.nativeDetail = nd;
-            if (it.state) {
-              const st = translateDynamic(it.state);
-              if (st !== it.state) next.state = st;
-            }
-            return next;
-          }),
+          items: res.items.map((it: Item) => translateItem(it)),
         };
       },
     }));
 
-    // 切换开关后请求重绘
-    listeners.push(() => {
+    renderers.push(() => {
       try {
         ctx.ui.requestRender?.();
       } catch {
-        /* 某些模式无 requestRender，忽略 */
+        /* 忽略 */
       }
     });
   });

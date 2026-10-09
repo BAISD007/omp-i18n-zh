@@ -17,22 +17,20 @@
 ### 作为插件安装（推荐）
 
 ```sh
-omp plugin install omp-i18n-zh
-```
-
-安装后重启 omp，斜杠菜单即为中文。
-
-### 手动放置
-
-```sh
+# 尚未发布到 npm 时，直接克隆
 git clone https://github.com/BAISD007/omp-i18n-zh.git ~/.omp/agent/extensions/omp-i18n-zh
 ```
 
-若手动放置的是仓库根目录，请把 `src/index.ts` 复制到 `~/.omp/agent/extensions/`：
+### 手动放置
+
+把 `src/index.ts` 和 `src/translations.json` 一起放到 `~/.omp/agent/extensions/`：
 
 ```sh
-cp ~/.omp/agent/extensions/omp-i18n-zh/src/index.ts ~/.omp/agent/extensions/omp-i18n-zh.ts
+git clone https://github.com/BAISD007/omp-i18n-zh.git /tmp/omp-i18n-zh
+cp /tmp/omp-i18n-zh/src/index.ts /tmp/omp-i18n-zh/src/translations.json ~/.omp/agent/extensions/
 ```
+
+> 两个文件必须放在一起：`index.ts` 会 import 同目录的 `translations.json`，且 `/zh reload` 从 `import.meta.url` 解析它的路径。只复制 `index.ts` 会导致加载失败。
 
 ### 临时试用单个文件
 
@@ -42,13 +40,31 @@ omp -e /path/to/omp-i18n-zh/src/index.ts
 
 ## 用法
 
-会话内输入 `/zh` 切换：
+会话内输入 `/zh`：
 
 | 命令 | 作用 |
 | --- | --- |
 | `/zh` | 开/关切换 |
 | `/zh on` | 开启中文 |
 | `/zh off` | 关闭（切回英文） |
+| `/zh status` | 查看当前状态 |
+| `/zh reload` | 重新加载翻译表，改完立即生效，无需重启 |
+
+## 改翻译
+
+翻译表在 [`src/translations.json`](./src/translations.json)，是纯数据，改完 `/zh reload` 即可。
+
+| 字段 | 用途 | 注意事项 |
+| --- | --- | --- |
+| `exact` | 静态文案整句替换 | key 必须和英文原文**完全一致**（含大小写、标点） |
+| `prefix` | 动态文案的可译前缀 | 匹配的剩余部分（状态值）会再经 `state` 处理 |
+| `state` | 状态值里的英文片段 | 见下方顺序要求 |
+
+**顺序要求**：`prefix` 和 `state` 在加载时会按字面长度自动降序排序，所以不需要手动排序。但这个前提是**长片段必须写全**——如果只写 `none` 而不写 `none saved`，替换掉 `none` 后会留下一个没人接的 `saved`。
+
+**不要翻译**：模型 id、URL、上下文数字、参数用法提示（`<objective>`、`[--scope project|user]`）。这些是实际要输入或需要精确比对的内容。
+
+新增条目的边界检查已处理 `supercalifragilistic` 里 `on` 不被误拆这类情况，一般不用操心。
 
 ## 覆盖范围
 
@@ -78,13 +94,7 @@ omp 的扩展 API 提供 `ctx.ui.addAutocompleteProvider(factory)`，允许包�
 
 `label`、`value`、`icon` 一律不动 —— 前两者决定补全行为和输入回填。
 
-翻译表是普通 JS 对象（`src/index.ts` 里的 `EXACT`），改文案不需要重新编译：
-
-- 静态文案：`EXACT["Open settings menu"] = "打开设置菜单"`
-- 动态文案：在 `PREFIX` 里加一条前缀规则，状态值部分原样保留
-- 状态片段：在 `STATE_FRAGMENTS` 里加，**按字面长度降序匹配**（必须让 `"none saved"` 先于 `"none"` 命中，否则会留下没人接的 `saved`）
-
-新增条目时注意边界：模型 id、URL、上下文数字（`1% (6,782/1,048,576)`）不应被翻译。词边界检查已处理 `supercalifragilistic` 里 `on` 不被误拆这类情况。
+翻译表在 `src/translations.json`，改完 `/zh reload`。重载失败（JSON 损坏、为空）时会报错并**保留原有翻译继续工作**，不会因为一个笔误搞挂整个插件。
 
 ## 兼容性
 
